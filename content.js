@@ -43,18 +43,43 @@
     if (!b) return;
 
     const rate = billingPlans[instanceToPlan[b.instanceType]] || 0;
-    const cost = (rate * durationMin(b.startedAt, b.finishedAt)).toFixed(2);
+
+    const parseLiveDuration = (txt) => {
+      const m = /(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?/.exec(txt.trim());
+      const mins = (m[1] ? parseInt(m[1]) : 0) + (m[2] ? parseInt(m[2]) / 60 : 0);
+      return mins;
+    };
+
     const timing = item.querySelector('.page-builds-item-build-timing');
-    if (timing && !timing.querySelector('.build-cost')) {
-      const d = document.createElement('div');
-      d.className = 'build-cost';
+    if (!timing || timing.querySelector('.build-cost')) return;
+
+    const d = document.createElement('div');
+    d.className = 'build-cost';
+    d.style.cssText = 'font-weight:bold;margin-top:4px;color:#4caf50';
+    timing.appendChild(d);
+
+    const durSpan = item.querySelector('span.build-duration.duration');
+
+    const updateCost = () => {
+      if (!durSpan) return;
+      const mins = parseLiveDuration(durSpan.textContent);
+      const cost = (rate * mins).toFixed(2);
       d.textContent = `💸 $${cost}`;
-      d.style.cssText = 'font-weight:bold;margin-top:4px;color:#4caf50';
-      timing.appendChild(d);
-      item.dataset.costInjected = 'true';
-      // console.log('[Injected cost]', num, '$' + cost);
+    };
+
+    updateCost();
+
+    if (durSpan) {
+      new MutationObserver(updateCost).observe(durSpan, {
+        characterData: true,
+        childList: true,
+        subtree: true
+      });
     }
+
+    item.dataset.costInjected = 'true';
   }
+
 
   async function observeList() {
     console.log('[observeList] waiting');
@@ -75,18 +100,48 @@
   function injectSingle() {
     const id = location.pathname.split('/').pop();
     const b = [...buildsMap.values()].find(x => x._id === id);
-    if (!b || document.querySelector('.build-cost-line')) return;
+    if (!b) return;
+
+    const container = document.querySelector('.page-build-details-overview__list');
+    if (!container || !b.instanceType) return;
 
     const rate = billingPlans[instanceToPlan[b.instanceType]] || 0;
-    const cost = (rate * durationMin(b.startedAt, b.finishedAt)).toFixed(2);
-    const container = document.querySelector('.page-build-details-overview__list');
-    if (container) {
-      const d = document.createElement('div');
-      d.className = 'build-cost-line';
-      d.textContent = `💸 Estimated build cost: $${cost}`;
-      d.style.cssText = 'font-weight:bold;color:#4caf50;margin-top:12px';
-      container.appendChild(d);
-      console.log('[Injected single cost]', id, '$' + cost);
+
+    // Parse "7m 29s" -> minutes as float
+    const parseLiveDuration = (txt) => {
+      const m = /(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?/.exec(txt.trim());
+      const mins = (m[1] ? parseInt(m[1]) : 0) + (m[2] ? parseInt(m[2]) / 60 : 0);
+      return mins;
+    };
+
+    const updateCost = () => {
+      const durSpan = document.querySelector('div.page-build-details-overview__list-item-value span.build-duration.duration');
+      if (!durSpan) return;
+      const mins = parseLiveDuration(durSpan.textContent);
+      const cost = (rate * mins).toFixed(2);
+      costLine.textContent = `💸 Estimated build cost: $${cost}`;
+    };
+
+    // Create or reuse cost display line
+    let costLine = container.querySelector('.build-cost-line');
+    if (!costLine) {
+      costLine = document.createElement('div');
+      costLine.className = 'build-cost-line';
+      costLine.style.cssText = 'font-weight:bold;color:#4caf50;margin-top:12px';
+      container.appendChild(costLine);
+    }
+
+    // Initial update
+    updateCost();
+
+    // Watch for duration updates
+    const durSpan = document.querySelector('span.build-duration.duration');
+    if (durSpan) {
+      new MutationObserver(updateCost).observe(durSpan, {
+        characterData: true,
+        childList: true,
+        subtree: true
+      });
     }
   }
 
