@@ -30,8 +30,30 @@
     });
     o.observe(document.documentElement, { childList: true, subtree: true });
   });
+  const formatCost = (cost) => {
+    if (cost === 0) return '0';
+    return cost < 0.01 ? cost.toFixed(4).replace(/0+$/, '').replace(/\.$/, '') : cost.toFixed(2).replace(/\.00$/, '');
+  };
 
   // 4. Injection logic
+  const injectStyles = () => {
+    const style = document.createElement('style');
+    style.textContent = `
+    .codemagic-extension-badge {
+      border: 1px dashed #4caf50;
+      /* background: rgba(76, 175, 80, 0.1); */
+      color: rgba(255, 255, 255, 0.8);
+      padding: 5px 10px;
+      border-radius: 4px;
+      display: inline-block;
+      font-size: 12px;
+      font-family: monospace;
+      margin-top: 4px;
+    }
+  `;
+    document.head.appendChild(style);
+  };
+
   function injectCostItem(item) {
     if (item.dataset.costInjected) return;
     const idxEl = item.querySelector('.page-builds-item__index');
@@ -55,7 +77,7 @@
 
     const d = document.createElement('div');
     d.className = 'build-cost';
-    d.style.cssText = 'font-weight:bold;margin-top:4px;color:#4caf50';
+    d.classList.add('codemagic-extension-badge');
     timing.appendChild(d);
 
     const durSpan = item.querySelector('span.build-duration.duration');
@@ -63,7 +85,7 @@
     const updateCost = () => {
       if (!durSpan) return;
       const mins = parseLiveDuration(durSpan.textContent);
-      const cost = (rate * mins).toFixed(2);
+      const cost = formatCost(rate * mins);
       d.textContent = `💸 $${cost}`;
     };
 
@@ -78,23 +100,6 @@
     }
 
     item.dataset.costInjected = 'true';
-  }
-
-
-  async function observeList() {
-    console.log('[observeList] waiting');
-    await waitFor('.page-builds-item');
-    console.log('[observeList] ready');
-    document.querySelectorAll('.page-builds-item').forEach(injectCostItem);
-    new MutationObserver(muts => {
-      muts.forEach(m => {
-        m.addedNodes.forEach(n => {
-          if (n.nodeType === 1 && n.matches('.page-builds-item')) {
-            injectCostItem(n);
-          }
-        });
-      });
-    }).observe(document.body, { childList: true, subtree: true });
   }
 
   function injectSingle() {
@@ -118,7 +123,7 @@
       const durSpan = document.querySelector('div.page-build-details-overview__list-item-value span.build-duration.duration');
       if (!durSpan) return;
       const mins = parseLiveDuration(durSpan.textContent);
-      const cost = (rate * mins).toFixed(2);
+      const cost = formatCost(rate * mins);
       costLine.textContent = `💸 Estimated build cost: $${cost}`;
     };
 
@@ -127,7 +132,7 @@
     if (!costLine) {
       costLine = document.createElement('div');
       costLine.className = 'build-cost-line';
-      costLine.style.cssText = 'font-weight:bold;color:#4caf50;margin-top:12px';
+      costLine.classList.add('codemagic-extension-badge');
       container.appendChild(costLine);
     }
 
@@ -143,7 +148,74 @@
         subtree: true
       });
     }
+    // Inject step costs in build details
+    injectStepCosts();
   }
+
+  function injectStepCosts() {
+    const id = location.pathname.split('/').pop();
+    const b = [...buildsMap.values()].find(x => x._id === id);
+    if (!b || !b.instanceType) return;
+
+    const rate = billingPlans[instanceToPlan[b.instanceType]] || 0;
+    if (!rate) return;
+
+    const parseLiveDuration = (txt) => {
+      const m = /(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?/.exec(txt.trim());
+      const mins = (m[1] ? parseInt(m[1]) : 0) + (m[2] ? parseInt(m[2]) / 60 : 0);
+      return mins;
+    };
+
+    const steps = document.querySelectorAll('.build-steps > .build-step');
+    steps.forEach(step => {
+      if (step.dataset.stepCostInjected) return;
+
+      const durSpan = step.querySelector('.build-duration.duration');
+      const titleEl = step.querySelector('.build-step--title');
+      if (!durSpan || !titleEl) return;
+
+      const costEl = document.createElement('div');
+      costEl.className = 'step-cost';
+      costEl.classList.add('codemagic-extension-badge');
+      costEl.style.cssText = 'font-weight: bold; color: #9da4af; font-size: 13px;';
+      titleEl.insertBefore(costEl, durSpan.parentElement);
+
+      const updateStepCost = () => {
+        const mins = parseLiveDuration(durSpan.textContent);
+        const cost = formatCost(rate * mins);
+        costEl.textContent = `💸 $${cost}`;
+
+        console.log('[Step cost updated]', step, mins, cost);
+      };
+
+      updateStepCost();
+
+      new MutationObserver(updateStepCost).observe(durSpan, {
+        characterData: true,
+        childList: true,
+        subtree: true
+      });
+
+      step.dataset.stepCostInjected = 'true';
+    });
+  }
+
+  async function observeList() {
+    console.log('[observeList] waiting');
+    await waitFor('.page-builds-item');
+    console.log('[observeList] ready');
+    document.querySelectorAll('.page-builds-item').forEach(injectCostItem);
+    new MutationObserver(muts => {
+      muts.forEach(m => {
+        m.addedNodes.forEach(n => {
+          if (n.nodeType === 1 && n.matches('.page-builds-item')) {
+            injectCostItem(n);
+          }
+        });
+      });
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+
 
   async function observeDetail() {
     console.log('[observeDetail] waiting');
@@ -203,6 +275,7 @@
 
   // 8. Init
   fetchPlans().then(() => {
+    injectStyles();
     onNavigate();
   });
   window.addEventListener('codemagic:locationchange', onNavigate);
