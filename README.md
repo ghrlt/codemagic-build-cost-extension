@@ -10,7 +10,7 @@ Une extension Chrome légère pour injecter le coût estimé de chaque build dir
 
 ## 🚀 Installation
 
-Obtenez l'extension directement depuis le [Chrome Web Store]() !
+Obtenez l'extension directement depuis le [Chrome Web Store](https://chromewebstore.google.com/detail/eakkcahigoddpfieijdbmdiffcihebik) !
 
 1. **Cloner le dépôt** :
    ```bash
