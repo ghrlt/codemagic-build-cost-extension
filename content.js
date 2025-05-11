@@ -42,7 +42,7 @@
     .codemagic-extension-badge {
       border: 1px dashed #4caf50;
       /* background: rgba(76, 175, 80, 0.1); */
-      color: rgba(255, 255, 255, 0.8);
+      /* color: rgba(255, 255, 255, 0.9); */
       padding: 5px 10px;
       border-radius: 4px;
       display: inline-block;
