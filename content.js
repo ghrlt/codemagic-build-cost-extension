@@ -109,6 +109,8 @@
     const b = [...buildsMap.values()].find(x => x._id === id);
     if (!b) return;
 
+    if (b.status == "queued" || b.startedAt == null) return;
+
     const container = document.querySelector('.page-build-details-overview__list');
     if (!container || !b.instanceType) return;
 
