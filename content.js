@@ -64,6 +64,8 @@
     const b = buildsMap.get(num);
     if (!b) return;
 
+    if (b.status == "queued" || b.startedAt == null) return;
+
     const rate = billingPlans[instanceToPlan[b.instanceType]] || 0;
 
     const parseLiveDuration = (txt) => {
